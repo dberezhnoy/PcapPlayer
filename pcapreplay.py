@@ -117,8 +117,8 @@ def parse_packet_record(pcap_file):
          return 0
 
     timestamp_1, timestamp_2, captured_len, origin_len = record_unpack(record_bytes)
-    if (captured_len != origin_len):
-        print("WARNING: len error") 
+    if (captured_len < origin_len):
+        print(f"WARNING: Captured len {captured_len} is less than origin len {origin_len}")
 
     return captured_len
 #
@@ -144,7 +144,7 @@ def parse_eth2_frame(pcap_file, eth_frame_len):
 #
 def parse_ipv4_header(data):
 
-    header_len = (int.from_bytes(data[0:1], "big") & 0x0F) * 4
+    header_len = (data[0] & 0x0F) * 4
     print (f"{header_len}")           
     src_ip_addr = socket.inet_ntoa(data[12:16])
     dst_ip_addr = socket.inet_ntoa(data[16:20])
@@ -164,6 +164,9 @@ def parse_ipv4_header(data):
             return True
 
 def parse_tcp_header(data):
+    src_port = int.from_bytes(data[0:2], "big")
+    header_len = ((data[12] & 0xF0) >> 4) * 4
+    print(f"{src_port} {header_len}")
     return True
 
 if __name__ == "__main__":
