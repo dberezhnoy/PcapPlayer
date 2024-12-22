@@ -6,12 +6,20 @@ VER_MAJOR = 0
 VER_MINOR = 1
 
 class LinkType(Enum):
-    INVALID  = -1 # BSD loopback encapsulation.
+    INVALID  = -1 # Invalid
     NULL     = 0  # BSD loopback encapsulation.
     ETHERNET = 1  # IEEE 802.3 Ethernet (10Mb, 100Mb, 1000Mb, and up)
 
+class EthType(Enum):
+    INVALID  = -1 # Invalid
+    IPv4     = 0  # IPv4
+    IPv6     = 1  # IPv6
+
 usage_str = f"Usage: {sys.argv[0]} pcap_filename"
 
+#
+# Main
+#
 def main():
 
     if len(sys.argv) == 1:
@@ -22,17 +30,21 @@ def main():
     print(f"Pcap player (v{VER_MAJOR}.{VER_MINOR})")
     print(f"Open pcap file: {pcap_filename}")
     with open(pcap_filename, "rb") as pcap_file:
-        #
+
         link_type = parse_and_validate_header(pcap_file)
         if link_type == LinkType.INVALID:
             sys.exit(1)
-        #
+
         print("Parsing and sending records")
         while parse_and_send_payload(pcap_file, link_type):
-            pass   
-     
+            pass
+
+    print("Done!")
     sys.exit(0)
 
+#
+#
+#
 def parse_and_validate_header(pcap_file):
 
     # File header format:
@@ -65,29 +77,57 @@ def parse_and_validate_header(pcap_file):
     print(f"Link Type {LinkType(link_type).name}")
     return LinkType(link_type)
 
+
+frame_num_g = 0
+
+#
+#
+#
 def parse_and_send_payload(pcap_file, link_type):
 
     data_len = parse_packet_record(pcap_file)
+    if data_len == 0:
+        return False
+
+    global frame_num_g
+    frame_num_g += 1
+    print(f"Frame {frame_num_g}")
+
     if link_type == LinkType.ETHERNET:
-       parse_ethernet_record(pcap_file, data_len)
+       return parse_eth2_frame(pcap_file, data_len)
 
     return False
-
+#
+#
+#
 def parse_packet_record(pcap_file):
 
     record_fmt = 'IIII'
     record_size = struct.calcsize(record_fmt)
     record_unpack = struct.Struct(record_fmt).unpack_from 
     record_bytes = pcap_file.read(record_size)
+    if not record_bytes:
+         return 0
+
     timestamp_1, timestamp_2, captured_len, origin_len = record_unpack(record_bytes)
     if (captured_len != origin_len):
         print("WARNING: len error") 
 
     return captured_len
+#
+#
+#
+def parse_eth2_frame(pcap_file, eth_frame_len):
 
-def parse_ethernet_record(pcap_file, eth_frame_len):
-   print(f"{eth_frame_len}")
-   data = pcap_file.read(eth_frame_len)
+    data = pcap_file.read(eth_frame_len)
+    eth_type =  EthType.INVALID
+    if data[12] == 0x08 and data[13] == 0x00:
+        eth_type = EthType.IPv4
+        print (f"{eth_type.name}")
+        return True
+    else:
+        print (f"Unsupported eth type {data[12]:x}{data[13]:x}")
+        return False
 
 if __name__ == "__main__":
     main()
