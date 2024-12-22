@@ -1,3 +1,4 @@
+import socket
 import sys
 import struct
 from enum import Enum
@@ -14,6 +15,12 @@ class EthType(Enum):
     INVALID  = -1 # Invalid
     IPv4     = 0  # IPv4
     IPv6     = 1  # IPv6
+
+class TransportProtocol(Enum):
+    INVALID  = -1 # Invalid
+    TCP      = 0  # TCP
+    UDP      = 1  # UDP
+
 
 usage_str = f"Usage: {sys.argv[0]} pcap_filename"
 
@@ -123,11 +130,41 @@ def parse_eth2_frame(pcap_file, eth_frame_len):
     eth_type =  EthType.INVALID
     if data[12] == 0x08 and data[13] == 0x00:
         eth_type = EthType.IPv4
-        print (f"{eth_type.name}")
-        return True
-    else:
-        print (f"Unsupported eth type {data[12]:x}{data[13]:x}")
-        return False
+
+    match eth_type:
+        case EthType.IPv4:
+            print (f"{eth_type.name}")            
+            return parse_ipv4_header(data[14:])
+        case _:
+            print (f"WARNING: Skipping unsupported eth type {data[12]:#x}{data[13]:#x}.")
+            return True
+
+#      
+#
+#
+def parse_ipv4_header(data):
+
+    header_len = (int.from_bytes(data[0:1], "big") & 0x0F) * 4
+    print (f"{header_len}")           
+    src_ip_addr = socket.inet_ntoa(data[12:16])
+    dst_ip_addr = socket.inet_ntoa(data[16:20])
+    print (f"{src_ip_addr} {dst_ip_addr}")           
+
+    transport_protocol = TransportProtocol.INVALID
+    if data[9] == 0x6:
+        transport_protocol = TransportProtocol.TCP
+
+    match transport_protocol:
+        case TransportProtocol.TCP:
+            print (f"{transport_protocol}")
+            parse_tcp_header(data[header_len:])
+            return True
+        case _:
+            print (f"WARNING: Skipping unsupported transport protocol {data[9]:#x}.")
+            return True
+
+def parse_tcp_header(data):
+    return True
 
 if __name__ == "__main__":
     main()
