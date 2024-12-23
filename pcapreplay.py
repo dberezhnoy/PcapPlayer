@@ -47,6 +47,7 @@ class AppCtx:
         # Input args
         self.pcap_filename = None
         self.in_frame_nums = None
+        self.replay_to_addr = None
         # App context
         self.frame_list    = None
         self.cur_frame     = None
@@ -78,6 +79,7 @@ def main():
     ctx = AppCtx()
     ctx.pcap_filename = args.pcap
     ctx.in_frame_nums = parse_input_frame_nums(args.frames)
+    ctx.replay_to_addr = args.replay_to
     ctx.frame_list = []
 
     run_app(ctx)
@@ -89,6 +91,9 @@ def main():
 # run_app
 #
 def run_app(ctx):
+    
+    if ctx.replay_to_addr:
+        connect_to_remote_addr(ctx)
 
     print(f"Open pcap file: {ctx.pcap_filename}")
     with open(ctx.pcap_filename, "rb") as pcap_file:
@@ -104,6 +109,11 @@ def run_app(ctx):
 
         print(f"\nProcessing frames:")
         process_frames(ctx)
+
+def connect_to_remote_addr(ctx):
+    print(f"\nConnecting to {ctx.replay_to_addr}")
+    print("Done\n")
+
 
 #
 # parse_and_validate_header
