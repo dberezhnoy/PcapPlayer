@@ -58,7 +58,7 @@ def main():
     print(f"Open pcap file: {pcap_filename}")
 
     ctx = AppCtx()
-    ctx.frame_nums = [40, 6, 13, 15, 38]
+    ctx.frame_nums = [40, 38, 13, 15, 6]
     ctx.frame_list= []
 
     with open(pcap_filename, "rb") as pcap_file:
@@ -225,14 +225,28 @@ def save_payload(data, ctx):
     return True
 
 def process_frames(ctx):
-    for frame in ctx.frame_list:
-        print(f"Frame: {frame.frame_num}")
-        print(f"IPv4: src addr = {frame.src_ip} dst addr = {frame.dst_ip}")
-        print(f"TCP : src port = {frame.src_port} dst port = {frame.dst_port} paylod len = {frame.payload_len}")
-        if frame.captured_len < frame.origin_len:
-            print(f"WARNING: Captured len {frame.captured_len} is less than origin len {frame.origin_len}")
+    for frame_num in ctx.frame_nums:
+       #print(f"{frame_num}")
+       frameToSearch = Frame()
+       frameToSearch.frame_num = frame_num
+       try:
+           index = ctx.frame_list.index(frameToSearch)
+           frame = ctx.frame_list[index]
+           print(f"Frame: {frame.frame_num}")
+           print(f"IPv4: src addr = {frame.src_ip} dst addr = {frame.dst_ip}")
+           print(f"TCP : src port = {frame.src_port} dst port = {frame.dst_port} paylod len = {frame.payload_len}")
+           if frame.captured_len < frame.origin_len:
+               print(f"WARNING: Captured len {frame.captured_len} is less than origin len {frame.origin_len}")
 
-        print(f"DBG payload len {len(frame.payload)}")
+           send_frame(frame, ctx)
+
+       except:
+           pass
+
+    return True
+
+def send_frame(frame, ctx):
+    print("Sending frame...")
     return True
     
 if __name__ == "__main__":
