@@ -23,8 +23,15 @@ class TransportProtocol(Enum):
 
 class Frame:
     def __init__(self):
-        self.frame_num     = 0
-        self.frame_payload = None
+        self.frame_num    = 0
+        self.captured_len = None
+        self.origin_len   = None
+        self.src_ip       = None
+        self.src_port     = None
+        self.dst_ip       = None
+        self.dst_port     = None
+        self.payload      = None
+        self.payload_len  = 0
 
     def __eq__(self, other):
         return self.frame_num == other.frame_num
@@ -32,6 +39,8 @@ class Frame:
 class AppCtx:
     def __init__(self):
         self.frame_nums = None
+        self.frame_list = None
+        self.cur_frame  = None
 
 usage_str = f"Usage: {sys.argv[0]} pcap_filename"
 
@@ -49,8 +58,8 @@ def main():
     print(f"Open pcap file: {pcap_filename}")
 
     ctx = AppCtx()
-    ctx.frame_nums = [6, 13, 15]
-
+    ctx.frame_nums = [40, 6, 13, 15, 38]
+    ctx.frame_list= []
 
     with open(pcap_filename, "rb") as pcap_file:
 
@@ -58,9 +67,13 @@ def main():
         if link_type == LinkType.INVALID:
             sys.exit(1)
 
-        print(f"Parsing and sending frames: {ctx.frame_nums}")
-        while parse_and_send_payload(pcap_file, link_type, ctx):
+        print(f"\nReading frames: {ctx.frame_nums}")
+        while read_parse_frames(pcap_file, link_type, ctx):
             pass
+        print("Done!")
+
+        print(f"\nProcessing frames:")
+        process_frames(ctx)
 
     print("\nDone!")
     sys.exit(0)
@@ -106,14 +119,11 @@ frame_num_g = 0
 #
 #
 #
-def parse_and_send_payload(pcap_file, link_type, ctx):
+def read_parse_frames(pcap_file, link_type, ctx):
 
     data_len = parse_packet_record(pcap_file, ctx)
     if data_len == 0:
         return False
-
-    global frame_num_g
-    frame_num_g += 1
 
     if link_type == LinkType.ETHERNET:
        return parse_eth2_frame(pcap_file, data_len, ctx)
@@ -131,9 +141,19 @@ def parse_packet_record(pcap_file, ctx):
     if not record_bytes:
          return 0
 
+    global frame_num_g
+    frame_num_g += 1
+
+    ctx.cur_frame = Frame()
+
     timestamp_1, timestamp_2, captured_len, origin_len = record_unpack(record_bytes)
-    if (captured_len < origin_len):
-        print(f"WARNING: Captured len {captured_len} is less than origin len {origin_len}")
+    ctx.cur_frame = Frame()
+    ctx.cur_frame.frame_num    = frame_num_g
+    ctx.cur_frame.captured_len = captured_len
+    ctx.cur_frame.origin_len   = origin_len
+
+    #if (captured_len < origin_len):
+    #    ctx.cur_frame.frame_info_list.append(f"WARNING: Captured len {captured_len} is less than origin len {origin_len}")
 
     return captured_len
 #
@@ -148,14 +168,12 @@ def parse_eth2_frame(pcap_file, eth_frame_len, ctx):
 
     if frame_num_g not in ctx.frame_nums:
         return True
-
-    print(f"\nFrame {frame_num_g}:")
-
+ 
     match eth_type:
         case EthType.IPv4:
             return parse_ipv4_header(data[14:], ctx)
         case _:
-            print (f"WARNING: Skipped unsupported eth type {data[12]:#x}{data[13]:#x}.")
+            print (f"Frame {frame_num_g}: Skipped unsupported eth type {data[12]:#x}{data[13]:#x}.")
             return True
 
 #      
@@ -164,9 +182,11 @@ def parse_eth2_frame(pcap_file, eth_frame_len, ctx):
 def parse_ipv4_header(data, ctx):
 
     header_len = (data[0] & 0x0F) * 4
-    src_ip_addr = socket.inet_ntoa(data[12:16])
-    dst_ip_addr = socket.inet_ntoa(data[16:20])
-    print (f"IPv4: src addr = {src_ip_addr} dst addr = {dst_ip_addr}")
+    ctx.cur_frame.src_ip = socket.inet_ntoa(data[12:16])
+    ctx.cur_frame.dst_ip = socket.inet_ntoa(data[16:20])
+    #ctx.cur_frame.frame_info_list.append (f"IPv4: src addr = {src_ip_addr} dst addr = {dst_ip_addr}")
+    #ctx.cur_frame.src_ip = src_ip_addr
+    #ctx.cur_frame.dst_ip = dst_ip_addr
 
     transport_protocol = TransportProtocol.INVALID
     if data[9] == 0x6:
@@ -177,23 +197,43 @@ def parse_ipv4_header(data, ctx):
             parse_tcp_header(data[header_len:], ctx)
             return True
         case _:
-            print (f"WARNING: Skipping unsupported transport protocol {data[9]:#x}.")
+            print(f"Frame {frame_num_g}: Skipping frame with unsupported transport protocol {data[9]:#x}.")
             return True
 #
 #
 #
 def parse_tcp_header(data, ctx):
 
-    src_port = int.from_bytes(data[0:2], "big")
-    dst_port = int.from_bytes(data[2:4], "big")  
+    ctx.cur_frame.src_port = int.from_bytes(data[0:2], "big")
+    ctx.cur_frame.dst_port = int.from_bytes(data[2:4], "big")  
     header_len = ((data[12] & 0xF0) >> 4) * 4
-    payload_len = len(data) - header_len
-    print(f"TCP : src port = {src_port} dst port = {dst_port} paylod len = {payload_len}")
-    if payload_len == 0:
-       print("WARNING: Skipping frame with no payload")
+    ctx.cur_frame.payload_len = len(data) - header_len
+
+    #ctx.cur_frame.src_ip = src_ip_addr
+    #ctx.cur_frame.dst_ip = dst_ip_addr
+
+    #ctx.cur_frame.frame_info_list.append(f"TCP : src port = {src_port} dst port = {dst_port} paylod len = {payload_len}")
+    if ctx.cur_frame.payload_len == 0:
+       print(f"Frame {frame_num_g}: Skipping frame with no payload.")
        return True
 
+    return save_payload(data[header_len:], ctx)
+
+def save_payload(data, ctx):
+    ctx.cur_frame.payload = data
+    ctx.frame_list.append(ctx.cur_frame)
     return True
 
+def process_frames(ctx):
+    for frame in ctx.frame_list:
+        print(f"Frame: {frame.frame_num}")
+        print(f"IPv4: src addr = {frame.src_ip} dst addr = {frame.dst_ip}")
+        print(f"TCP : src port = {frame.src_port} dst port = {frame.dst_port} paylod len = {frame.payload_len}")
+        if frame.captured_len < frame.origin_len:
+            print(f"WARNING: Captured len {frame.captured_len} is less than origin len {frame.origin_len}")
+
+        print(f"DBG payload len {len(frame.payload)}")
+    return True
+    
 if __name__ == "__main__":
     main()
