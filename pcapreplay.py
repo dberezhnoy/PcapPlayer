@@ -1,10 +1,11 @@
 import socket
 import sys
 import struct
+import argparse
 from enum import Enum
 
 VER_MAJOR = 0
-VER_MINOR = 1
+VER_MINOR = 2
 
 class LinkType(Enum):
     INVALID  = -1 # Invalid
@@ -38,45 +39,62 @@ class Frame:
 
 class AppCtx:
     def __init__(self):
-        self.frame_nums = None
-        self.frame_list = None
-        self.cur_frame  = None
+        # Input args
+        self.pcap_filename = None
+        self.in_frame_nums = None
+        # App context
+        self.frame_list    = None
+        self.cur_frame     = None
 
-usage_str = f"Usage: {sys.argv[0]} pcap_filename"
-
+#
+#
+#
+def parse_input_frame_nums(frame_nums):
+    list_of_nums = [int(num.strip()) for num in frame_nums.split(",")]
+    return list_of_nums
 #
 # Main
 #
 def main():
 
-    if len(sys.argv) == 1:
-        print(usage_str)
-        sys.exit(1)
-
-    pcap_filename = sys.argv[1]
     print(f"Pcap player (v{VER_MAJOR}.{VER_MINOR})")
-    print(f"Open pcap file: {pcap_filename}")
+
+    # Parse input arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--pcap', type=str, help='pcap filename')
+    parser.add_argument('--frames', type=str, help='Comma separated list of frame nums: 1,2,3')
+    args = parser.parse_args()
+    if args.pcap is None:
+        parser.error("pcap filename cannot be empty")
+    if args.frames is None:
+        parser.error("frames list cannot be empty")
 
     ctx = AppCtx()
-    ctx.frame_nums = [40, 38, 13, 15, 6]
-    ctx.frame_list= []
+    ctx.pcap_filename = args.pcap
+    ctx.in_frame_nums = parse_input_frame_nums(args.frames)
+    ctx.frame_list = []
 
-    with open(pcap_filename, "rb") as pcap_file:
+    run_app(ctx)
+
+    print("\nDone!")
+    sys.exit(0)
+
+def run_app(ctx):
+
+    print(f"Open pcap file: {ctx.pcap_filename}")
+    with open(ctx.pcap_filename, "rb") as pcap_file:
 
         link_type = parse_and_validate_header(pcap_file)
         if link_type == LinkType.INVALID:
             sys.exit(1)
 
-        print(f"\nReading frames: {ctx.frame_nums}")
+        print(f"\nReading frames: {ctx.in_frame_nums}")
         while read_parse_frames(pcap_file, link_type, ctx):
             pass
         print("Done!")
 
         print(f"\nProcessing frames:")
         process_frames(ctx)
-
-    print("\nDone!")
-    sys.exit(0)
 
 #
 #
@@ -152,9 +170,6 @@ def parse_packet_record(pcap_file, ctx):
     ctx.cur_frame.captured_len = captured_len
     ctx.cur_frame.origin_len   = origin_len
 
-    #if (captured_len < origin_len):
-    #    ctx.cur_frame.frame_info_list.append(f"WARNING: Captured len {captured_len} is less than origin len {origin_len}")
-
     return captured_len
 #
 #
@@ -166,7 +181,7 @@ def parse_eth2_frame(pcap_file, eth_frame_len, ctx):
     if data[12] == 0x08 and data[13] == 0x00:
         eth_type = EthType.IPv4
 
-    if frame_num_g not in ctx.frame_nums:
+    if frame_num_g not in ctx.in_frame_nums:
         return True
  
     match eth_type:
@@ -225,7 +240,7 @@ def save_payload(data, ctx):
     return True
 
 def process_frames(ctx):
-    for frame_num in ctx.frame_nums:
+    for frame_num in ctx.in_frame_nums:
        #print(f"{frame_num}")
        frameToSearch = Frame()
        frameToSearch.frame_num = frame_num
