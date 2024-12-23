@@ -22,6 +22,9 @@ class TransportProtocol(Enum):
     TCP      = 0  # TCP
     UDP      = 1  # UDP
 
+#
+#
+#
 class Frame:
     def __init__(self):
         self.frame_num    = 0
@@ -36,7 +39,9 @@ class Frame:
 
     def __eq__(self, other):
         return self.frame_num == other.frame_num
-
+#
+#
+#
 class AppCtx:
     def __init__(self):
         # Input args
@@ -47,7 +52,7 @@ class AppCtx:
         self.cur_frame     = None
 
 #
-#
+#  parse_input_frame_nums
 #
 def parse_input_frame_nums(frame_nums):
     list_of_nums = [int(num.strip()) for num in frame_nums.split(",")]
@@ -61,8 +66,9 @@ def main():
 
     # Parse input arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pcap', type=str, help='pcap filename')
-    parser.add_argument('--frames', type=str, help='Comma separated list of frame nums: 1,2,3')
+    parser.add_argument('--pcap', type=str, required=True, help='pcap filename')
+    parser.add_argument('--frames', type=str, required=True, help='Comma separated list of frame nums: 1,2,3')
+    parser.add_argument('--replay_to', type=str, required=False, help='Remote host and port (host:port) to send frames')
     args = parser.parse_args()
     if args.pcap is None:
         parser.error("pcap filename cannot be empty")
@@ -79,6 +85,9 @@ def main():
     print("\nDone!")
     sys.exit(0)
 
+#
+# run_app
+#
 def run_app(ctx):
 
     print(f"Open pcap file: {ctx.pcap_filename}")
@@ -97,7 +106,7 @@ def run_app(ctx):
         process_frames(ctx)
 
 #
-#
+# parse_and_validate_header
 #
 def parse_and_validate_header(pcap_file):
 
