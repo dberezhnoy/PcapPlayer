@@ -189,6 +189,10 @@ def parse_tcp_header(data, ctx):
     header_len = ((data[12] & 0xF0) >> 4) * 4
     payload_len = len(data) - header_len
     print(f"TCP : src port = {src_port} dst port = {dst_port} paylod len = {payload_len}")
+    if payload_len == 0:
+       print("WARNING: Skipping frame with no payload")
+       return True
+
     return True
 
 if __name__ == "__main__":
