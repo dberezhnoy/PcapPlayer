@@ -90,7 +90,6 @@ def main():
 
     run_app(ctx)
 
-    print("\nDone!")
     sys.exit(0)
 
 #
@@ -116,11 +115,12 @@ def run_app(ctx):
         print("Done!")
 
         print(f"\nProcessing frames:")
-        process_frames(ctx)
+        num_of_processed_frames = process_frames(ctx)
 
         if ctx.server_sock:
             ctx.server_sock.close()
 
+        print (f"\nDone! Number of processed frames: {num_of_processed_frames}")
 #
 # connect_to_remote_addr
 #
@@ -301,11 +301,15 @@ def save_payload(data, ctx):
 # process_frames
 #
 def process_frames(ctx):
+    processed_frame_count = 0
     for frame_num in ctx.in_frame_nums:
-       #print(f"{frame_num}")
        frameToSearch = Frame()
        frameToSearch.frame_num = frame_num
        try:
+           # Check if there should be delay before sending the next frame
+           if ctx.server_sock and ctx.delay_ms and processed_frame_count > 0:
+               time.sleep(ctx.delay_ms / 1000)
+
            index = ctx.frame_list.index(frameToSearch)
            frame = ctx.frame_list[index]
            print(f"Frame: {frame.frame_num}")
@@ -314,12 +318,15 @@ def process_frames(ctx):
            if frame.captured_len < frame.origin_len:
                print(f"WARNING: Captured len {frame.captured_len} is less than origin len {frame.origin_len}")
 
+           # Send frame payload to the server
            if ctx.server_sock:
                send_frame(frame, ctx)
+
+           processed_frame_count += 1
        except:
            pass
 
-    return True
+    return processed_frame_count
 #
 # send_frame
 #
@@ -327,8 +334,6 @@ def send_frame(frame, ctx):
     try:
         num_bytes_sent = ctx.server_sock.send(frame.payload)
         print (f"Sent {num_bytes_sent} bytes to {ctx.server_sock.getpeername()}")
-        if ctx.delay_ms:
-            time.sleep(ctx.delay_ms / 1000)
     except socket.error as err:
         print ("Couldn't send frame: %s" %(err))
 
