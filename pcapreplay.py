@@ -2,10 +2,11 @@ import socket
 import sys
 import struct
 import argparse
+import time
 from enum import Enum
 
 VER_MAJOR = 0
-VER_MINOR = 3
+VER_MINOR = 4
 
 class LinkType(Enum):
     INVALID  = -1 # Invalid
@@ -40,14 +41,15 @@ class Frame:
     def __eq__(self, other):
         return self.frame_num == other.frame_num
 #
-#
+# Application context
 #
 class AppCtx:
     def __init__(self):
         # Input args
-        self.pcap_filename = None
-        self.in_frame_nums = None
+        self.pcap_filename  = None
+        self.in_frame_nums  = None
         self.replay_to_addr = None
+        self.delay_ms       = 0
         # App context
         self.frame_list    = None
         self.cur_frame     = None
@@ -71,17 +73,20 @@ def main():
     parser.add_argument('--pcap', type=str, required=True, help='pcap filename')
     parser.add_argument('--frames', type=str, required=True, help='Comma separated list of frame nums: 1,2,3')
     parser.add_argument('--replay_to', type=str, required=False, help='Remote host and port (host:port) to send frames')
+    parser.add_argument('--delay', type=int, required=False, help='Delay in ms between sending frames')
     args = parser.parse_args()
     if args.pcap is None:
         parser.error("pcap filename cannot be empty")
     if args.frames is None:
         parser.error("frames list cannot be empty")
 
+    # Init app context
     ctx = AppCtx()
-    ctx.pcap_filename = args.pcap
-    ctx.in_frame_nums = parse_input_frame_nums(args.frames)
+    ctx.pcap_filename  = args.pcap
+    ctx.in_frame_nums  = parse_input_frame_nums(args.frames)
     ctx.replay_to_addr = args.replay_to
-    ctx.frame_list = []
+    ctx.delay_ms       = args.delay
+    ctx.frame_list     = []
 
     run_app(ctx)
 
@@ -117,7 +122,7 @@ def run_app(ctx):
             ctx.server_sock.close()
 
 #
-#
+# connect_to_remote_addr
 #
 def connect_to_remote_addr(ctx):
 
@@ -188,11 +193,11 @@ def parse_and_validate_header(pcap_file):
     print(f"Link Type {LinkType(link_type).name}")
     return LinkType(link_type)
 
-
+# Global frames counter
 frame_num_g = 0
 
 #
-#
+# read_parse_frames
 #
 def read_parse_frames(pcap_file, link_type, ctx):
 
@@ -205,7 +210,7 @@ def read_parse_frames(pcap_file, link_type, ctx):
 
     return False
 #
-#
+# parse_packet_record
 #
 def parse_packet_record(pcap_file, ctx):
 
@@ -229,7 +234,7 @@ def parse_packet_record(pcap_file, ctx):
 
     return captured_len
 #
-#
+# parse_eth2_frame
 #
 def parse_eth2_frame(pcap_file, eth_frame_len, ctx):
 
@@ -249,16 +254,13 @@ def parse_eth2_frame(pcap_file, eth_frame_len, ctx):
             return True
 
 #      
-#
+# parse_ipv4_header
 #
 def parse_ipv4_header(data, ctx):
 
     header_len = (data[0] & 0x0F) * 4
     ctx.cur_frame.src_ip = socket.inet_ntoa(data[12:16])
     ctx.cur_frame.dst_ip = socket.inet_ntoa(data[16:20])
-    #ctx.cur_frame.frame_info_list.append (f"IPv4: src addr = {src_ip_addr} dst addr = {dst_ip_addr}")
-    #ctx.cur_frame.src_ip = src_ip_addr
-    #ctx.cur_frame.dst_ip = dst_ip_addr
 
     transport_protocol = TransportProtocol.INVALID
     if data[9] == 0x6:
@@ -272,7 +274,7 @@ def parse_ipv4_header(data, ctx):
             print(f"Frame {frame_num_g}: Skipping frame with unsupported transport protocol {data[9]:#x}.")
             return True
 #
-#
+# parse_tcp_header
 #
 def parse_tcp_header(data, ctx):
 
@@ -281,21 +283,23 @@ def parse_tcp_header(data, ctx):
     header_len = ((data[12] & 0xF0) >> 4) * 4
     ctx.cur_frame.payload_len = len(data) - header_len
 
-    #ctx.cur_frame.src_ip = src_ip_addr
-    #ctx.cur_frame.dst_ip = dst_ip_addr
-
-    #ctx.cur_frame.frame_info_list.append(f"TCP : src port = {src_port} dst port = {dst_port} paylod len = {payload_len}")
     if ctx.cur_frame.payload_len == 0:
        print(f"Frame {frame_num_g}: Skipping frame with no payload.")
        return True
 
     return save_payload(data[header_len:], ctx)
 
+#
+# save_payload
+#
 def save_payload(data, ctx):
     ctx.cur_frame.payload = data
     ctx.frame_list.append(ctx.cur_frame)
     return True
 
+#
+# process_frames
+#
 def process_frames(ctx):
     for frame_num in ctx.in_frame_nums:
        #print(f"{frame_num}")
@@ -312,19 +316,19 @@ def process_frames(ctx):
 
            if ctx.server_sock:
                send_frame(frame, ctx)
-
        except:
            pass
 
     return True
-
 #
-#
+# send_frame
 #
 def send_frame(frame, ctx):
     try:
         num_bytes_sent = ctx.server_sock.send(frame.payload)
         print (f"Sent {num_bytes_sent} bytes to {ctx.server_sock.getpeername()}")
+        if ctx.delay_ms:
+            time.sleep(ctx.delay_ms / 1000)
     except socket.error as err:
         print ("Couldn't send frame: %s" %(err))
 
