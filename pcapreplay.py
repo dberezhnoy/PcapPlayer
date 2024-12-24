@@ -5,7 +5,7 @@ import argparse
 from enum import Enum
 
 VER_MAJOR = 0
-VER_MINOR = 2
+VER_MINOR = 3
 
 class LinkType(Enum):
     INVALID  = -1 # Invalid
@@ -101,7 +101,8 @@ def run_app(ctx):
 
         link_type = parse_and_validate_header(pcap_file)
         if link_type == LinkType.INVALID:
-              
+            if ctx.server_sock:
+                ctx.server_sock.close()
             sys.exit(1)
 
         print(f"\nReading frames: {ctx.in_frame_nums}")
@@ -112,6 +113,12 @@ def run_app(ctx):
         print(f"\nProcessing frames:")
         process_frames(ctx)
 
+        if ctx.server_sock:
+            ctx.server_sock.close()
+
+#
+#
+#
 def connect_to_remote_addr(ctx):
 
     print(f"\nConnecting to {ctx.replay_to_addr}")
@@ -303,15 +310,24 @@ def process_frames(ctx):
            if frame.captured_len < frame.origin_len:
                print(f"WARNING: Captured len {frame.captured_len} is less than origin len {frame.origin_len}")
 
-           send_frame(frame, ctx)
+           if ctx.server_sock:
+               send_frame(frame, ctx)
 
        except:
            pass
 
     return True
 
+#
+#
+#
 def send_frame(frame, ctx):
-    print("Sending frame...")
+    try:
+        num_bytes_sent = ctx.server_sock.send(frame.payload)
+        print (f"Sent {num_bytes_sent} bytes to {ctx.server_sock.getpeername()}")
+    except socket.error as err:
+        print ("Couldn't send frame: %s" %(err))
+
     return True
     
 if __name__ == "__main__":
