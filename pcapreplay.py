@@ -51,6 +51,7 @@ class AppCtx:
         # App context
         self.frame_list    = None
         self.cur_frame     = None
+        self.server_sock   = None
 
 #
 #  parse_input_frame_nums
@@ -100,6 +101,7 @@ def run_app(ctx):
 
         link_type = parse_and_validate_header(pcap_file)
         if link_type == LinkType.INVALID:
+              
             sys.exit(1)
 
         print(f"\nReading frames: {ctx.in_frame_nums}")
@@ -111,9 +113,38 @@ def run_app(ctx):
         process_frames(ctx)
 
 def connect_to_remote_addr(ctx):
-    print(f"\nConnecting to {ctx.replay_to_addr}")
-    print("Done\n")
 
+    print(f"\nConnecting to {ctx.replay_to_addr}")
+    try:
+        host, port = ctx.replay_to_addr.split(":")
+    except:
+        print ("ERROR! Couldn't parse hostname and port")
+        sys.exit(1)
+
+    # Resolve hostname
+    try: 
+        host_ip = socket.gethostbyname(host)
+    except socket.gaierror as err: 
+        # this means could not resolve the host 
+        print ("Couldn't resolve hostname: %s" %(err))
+        sys.exit(1) 
+
+    # Create socket
+    try: 
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+    except socket.error as err: 
+        print ("ERROR! Failed to create socket: %s" %(err))
+
+    # Connect
+    try:
+        s.connect((host, int(port)))
+    except (socket.error, OverflowError) as err:
+        print (f"Couldn't connect: %s" %(err))
+        s.close()
+        sys.exit(1) 
+
+    ctx.server_sock = s
+    print("Connected!\n")
 
 #
 # parse_and_validate_header
