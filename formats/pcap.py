@@ -28,17 +28,36 @@ def read_header(pcap_file):
     header_size = struct.calcsize(header_fmt)
     header_unpack = struct.Struct(header_fmt).unpack_from 
     header_bytes = pcap_file.read(header_size)
+    if len(header_bytes) < header_size:
+        return None
 
     magic_number, major_version, minor_version, reserved1, reserved2, snap_len, link_type = header_unpack(header_bytes)
     header = Header(magic_number, major_version, minor_version, reserved1, reserved2, snap_len, link_type)
-    #header.magic_number = magic_number
-    #header.major_version = major_version
-    #header.minor_version = minor_version
-    #header.reserved1 =  reserved1
-    #header.reserved2 =  reserved2
-    #header.snap_len = snap_len
-    #header.link_type = link_type
 
     return header 
+
+class Record:
+    def __init__(self):
+        self.timestamp              = None # 32 bits
+        self.timestamp2             = None # 32 bits
+        self.captured_packet_length = None # 32 bits
+        self.original_packet_length = None # 32 bits
+
+    def __init__(self, timestamp, timestamp2, captured_packet_length, original_packet_length):
+        self.timestamp              = timestamp
+        self.timestamp2             = timestamp2
+        self.captured_packet_length = captured_packet_length
+        self.original_packet_length = original_packet_length
    
-   
+def read_record(pcap_file):
+    record_fmt = 'IIII'
+    record_size = struct.calcsize(record_fmt)
+    record_unpack = struct.Struct(record_fmt).unpack_from
+    record_bytes = pcap_file.read(record_size)
+    if len(record_bytes) < record_size:
+        return None
+
+    timestamp, timestamp2, captured_length, origin_length = record_unpack(record_bytes)
+    record = Record(timestamp, timestamp2, captured_length, origin_length)
+
+    return record

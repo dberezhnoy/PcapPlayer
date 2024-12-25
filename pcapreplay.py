@@ -108,7 +108,7 @@ def main():
     ctx = AppCtx()
     ctx.pcap_filename  = args.pcap
     ctx.in_frame_nums  = parse_input_frame_nums(args.frames)
-    ctx.replay_to_url = args.replay_to
+    ctx.replay_to_url  = args.replay_to
     ctx.delay_ms       = args.delay
     ctx.frame_list     = []
 
@@ -138,7 +138,7 @@ def run_app(ctx):
                     sys.exit(1)
 
                 print(f"\nReading frames: {ctx.in_frame_nums}")
-                while read_parse_frames(pcap_file, link_type, ctx):
+                while parse_pcap_record(pcap_file, link_type, ctx):
                     pass
             else:
                 #TODO: pcapng support
@@ -211,30 +211,20 @@ def connect_to_remote_addr(ctx):
 def parse_and_validate_pcap_header(pcap_file):
 
     header = pcap.read_header(pcap_file)
-    # File header format:
-    # Magic Number (32 bits)
-	    # Major Version (16 bits)
-    # Minor Version (16 bits)
-    # Reserved1 (32 bits)
-    # Reserved2 (32 bits)
-    # SnapLen (32 bits)
-    # LinkType (32 bits)
-    #header_fmt = 'IHHIIII'
-    #header_size = struct.calcsize(header_fmt)
-    #header_unpack = struct.Struct(header_fmt).unpack_from 
-    #header_bytes = pcap_file.read(header_size)
-    #magic_num, major_ver, minor_ver, reserved1, reserved2, snap_len, link_type = header_unpack(header_bytes)
+    if not header:
+        print(f"ERROR! Invalid pcap header size")
+        return LinkType.INVALID
 
     header.link_type &= 0x0FFFFFFF 
     print(f"Header: Magic Number {header.magic_number:#X} Major Version {header.major_version} Minor Version {header.minor_version} Link Type {header.link_type}")
 
     if header.magic_number != 0xA1B2C3D4 and header.magic_number != 0xA1B23C4D:
-        print(f"ERROR: Unexpected magic number value {header.magic_num:#x}")
+        print(f"ERROR! Unexpected magic number value {header.magic_num:#x}")
         return LinkType.INVALID
 
     # Only LINKTYPE_ETHERNET is supported now
     if header.link_type != LinkType.ETHERNET.value:
-       print(f"ERROR: Unsupported link type {header.link_type}")
+       print(f"ERROR! Unsupported link type {header.link_type}")
        return LinkType.INVALID
 
     print(f"Link Type {LinkType(header.link_type).name}")
@@ -248,40 +238,27 @@ frame_num_g = 0
 #
 # read_parse_frames
 #
-def read_parse_frames(pcap_file, link_type, ctx):
+def parse_pcap_record(pcap_file, link_type, ctx):
 
-    data_len = parse_packet_record(pcap_file, ctx)
-    if data_len == 0:
+    record = pcap.read_record(pcap_file)
+    if not record:
         return False
-
-    if link_type == LinkType.ETHERNET:
-       return parse_eth2_frame(pcap_file, data_len, ctx)
-
-    return False
-#
-# parse_packet_record
-#
-def parse_packet_record(pcap_file, ctx):
-
-    record_fmt = 'IIII'
-    record_size = struct.calcsize(record_fmt)
-    record_unpack = struct.Struct(record_fmt).unpack_from 
-    record_bytes = pcap_file.read(record_size)
-    if not record_bytes:
-         return 0
+    if record.captured_packet_length == 0:
+        return False
 
     global frame_num_g
     frame_num_g += 1
 
     ctx.cur_frame = Frame()
-
-    timestamp_1, timestamp_2, captured_len, origin_len = record_unpack(record_bytes)
-    ctx.cur_frame = Frame()
     ctx.cur_frame.frame_num    = frame_num_g
-    ctx.cur_frame.captured_len = captured_len
-    ctx.cur_frame.origin_len   = origin_len
+    ctx.cur_frame.captured_len = record.captured_packet_length
+    ctx.cur_frame.origin_len   = record.original_packet_length
 
-    return captured_len
+    if link_type == LinkType.ETHERNET:
+       return parse_eth2_frame(pcap_file, record.captured_packet_length, ctx)
+
+    return False
+
 #
 # parse_eth2_frame
 #
