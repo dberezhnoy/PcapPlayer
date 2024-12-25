@@ -57,7 +57,7 @@ class AppCtx:
         # Input args
         self.pcap_filename  = None
         self.in_frame_nums  = None
-        self.replay_to_addr = None
+        self.replay_to_url  = None
         self.delay_ms       = 0
         # App context
         self.frame_list    = None
@@ -81,7 +81,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pcap', type=str, required=True, help='pcap filename')
     parser.add_argument('--frames', type=str, required=True, help='Comma separated list of frame nums: 1,2,3')
-    parser.add_argument('--replay_to', type=str, required=False, help='Remote host and port (host:port) to send frames')
+    parser.add_argument('--replay_to', type=str, required=False, help='Remote host URL (tcp-plain://host:port) to send frames')
     parser.add_argument('--delay', type=int, required=False, help='Delay in ms between sending frames')
     args = parser.parse_args()
     if args.pcap is None:
@@ -93,7 +93,7 @@ def main():
     ctx = AppCtx()
     ctx.pcap_filename  = args.pcap
     ctx.in_frame_nums  = parse_input_frame_nums(args.frames)
-    ctx.replay_to_addr = args.replay_to
+    ctx.replay_to_url = args.replay_to
     ctx.delay_ms       = args.delay
     ctx.frame_list     = []
 
@@ -106,7 +106,7 @@ def main():
 #
 def run_app(ctx):
     
-    if ctx.replay_to_addr:
+    if ctx.replay_to_url:
         connect_to_remote_addr(ctx)
 
     print(f"Open pcap file: {ctx.pcap_filename}")
@@ -137,12 +137,21 @@ def run_app(ctx):
 #
 def connect_to_remote_addr(ctx):
 
-    print(f"\nConnecting to {ctx.replay_to_addr}")
-    try:
-        host, port = ctx.replay_to_addr.split(":")
-    except:
-        print ("ERROR! Couldn't parse hostname and port")
-        sys.exit(1)
+    print(f"\nConnecting to {ctx.replay_to_url}")
+    parsed_url = urlparse(ctx.replay_to_url)
+    is_tls = False
+    if parsed_url.scheme == "tcp-plain":
+         pass # Plain text by default
+    elif parsed_url.scheme == "tcp-tls":
+         is_tls = True
+         print ("ERROR! tcp-tls scheme is not supported")
+         sys.exit(1)
+    else:
+         print (f"ERROR! Unrecognized URL scheme: {parsed_url.scheme}")
+         sys.exit(1)
+
+    host = parsed_url.hostname
+    port = parsed_url.port
 
     # Resolve hostname
     try: 
