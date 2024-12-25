@@ -4,6 +4,7 @@ import struct
 import argparse
 import time
 from enum import Enum
+from urllib.parse import urlparse
 
 VER_MAJOR = 0
 VER_MINOR = 4
@@ -109,26 +110,28 @@ def run_app(ctx):
         connect_to_remote_addr(ctx)
 
     print(f"Open pcap file: {ctx.pcap_filename}")
-    with open(ctx.pcap_filename, "rb") as pcap_file:
+    try:
+        with open(ctx.pcap_filename, "rb") as pcap_file:
+            link_type = parse_and_validate_header(pcap_file)
+            if link_type == LinkType.INVALID:
+                if ctx.server_sock:
+                    ctx.server_sock.close()
+                sys.exit(1)
 
-        link_type = parse_and_validate_header(pcap_file)
-        if link_type == LinkType.INVALID:
+            print(f"\nReading frames: {ctx.in_frame_nums}")
+            while read_parse_frames(pcap_file, link_type, ctx):
+                pass
+            print("Done!")
+
+            print(f"\nProcessing frames:")
+            num_of_processed_frames = process_frames(ctx)
+
             if ctx.server_sock:
                 ctx.server_sock.close()
-            sys.exit(1)
 
-        print(f"\nReading frames: {ctx.in_frame_nums}")
-        while read_parse_frames(pcap_file, link_type, ctx):
-            pass
-        print("Done!")
-
-        print(f"\nProcessing frames:")
-        num_of_processed_frames = process_frames(ctx)
-
-        if ctx.server_sock:
-            ctx.server_sock.close()
-
-        print (f"\nDone! Number of processed frames: {num_of_processed_frames}")
+            print (f"\nDone! Number of processed frames: {num_of_processed_frames}")
+    except OSError as err:
+        print ("Couldn't open pcap file: %s" %(err))
 #
 # connect_to_remote_addr
 #
