@@ -122,7 +122,7 @@ def run_app(ctx):
     print(f"Open pcap file: {ctx.pcap_filename}")
     filename, file_ext = ctx.pcap_filename.split(".")
     pcap_type = PcapType.PCAP # PCAP by default
-    if file_ext == PCAPNG_FILE_EXT_STR:
+    if file_ext == PCAPNG_FILE_EXT_STR.casefold():
         print("ERROR! Pcapng format is not supported")
         sys.exit(1)
 
@@ -163,7 +163,7 @@ def run_app(ctx):
 def connect_to_remote_addr(ctx):
 
     print(f"\nConnecting to {ctx.replay_to_url}")
-    parsed_url = urlparse(ctx.replay_to_url)
+    parsed_url = urlparse(ctx.replay_to_url.casefold())
     is_tls = False
     if parsed_url.scheme == URL_SCHEME_PLAIN_TCP:
          pass # Plain text by default
