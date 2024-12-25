@@ -5,6 +5,8 @@ import argparse
 import time
 from enum import Enum
 from urllib.parse import urlparse
+from formats import pcapng
+from formats import pcap
 
 VER_MAJOR = 0
 VER_MINOR = 4
@@ -16,8 +18,8 @@ class PcapType(Enum):
     PCAP     = 0
     PCAPNG   = 1
 
-PCAP_FILE_EXT_STR = "pcap"
-PCAPNG_FILE_EXT_STR = "pcapng"
+
+
 
 #
 # Physical link type
@@ -122,7 +124,7 @@ def run_app(ctx):
     print(f"Open pcap file: {ctx.pcap_filename}")
     filename, file_ext = ctx.pcap_filename.split(".")
     pcap_type = PcapType.PCAP # PCAP by default
-    if file_ext == PCAPNG_FILE_EXT_STR.casefold():
+    if file_ext == pcapng.PCAP_FILE_EXT_STR.casefold():
         print("ERROR! Pcapng format is not supported")
         sys.exit(1)
 
@@ -208,37 +210,39 @@ def connect_to_remote_addr(ctx):
 #
 def parse_and_validate_pcap_header(pcap_file):
 
+    header = pcap.read_header(pcap_file)
     # File header format:
     # Magic Number (32 bits)
-    # Major Version (16 bits)
+	    # Major Version (16 bits)
     # Minor Version (16 bits)
     # Reserved1 (32 bits)
     # Reserved2 (32 bits)
     # SnapLen (32 bits)
     # LinkType (32 bits)
-    header_fmt = 'IHHIIII'
-    header_size = struct.calcsize(header_fmt)
-    header_unpack = struct.Struct(header_fmt).unpack_from 
-    header_bytes = pcap_file.read(header_size)
-    magic_num, major_ver, minor_ver, reserved1, reserved2, snap_len, link_type = header_unpack(header_bytes)
+    #header_fmt = 'IHHIIII'
+    #header_size = struct.calcsize(header_fmt)
+    #header_unpack = struct.Struct(header_fmt).unpack_from 
+    #header_bytes = pcap_file.read(header_size)
+    #magic_num, major_ver, minor_ver, reserved1, reserved2, snap_len, link_type = header_unpack(header_bytes)
 
-    link_type &= 0x0FFFFFFF 
+    header.link_type &= 0x0FFFFFFF 
+    print(f"Header: Magic Number {header.magic_number:#X} Major Version {header.major_version} Minor Version {header.minor_version} Link Type {header.link_type}")
 
-    print(f"Header: Magic Number {magic_num:#X} Major Version {major_ver} Minor Version {minor_ver} Link Type {link_type}")
-
-    if magic_num != 0xA1B2C3D4 and magic_num != 0xA1B23C4D:
-        print(f"ERROR: Unexpected magic number value {magic_num:#x}")
+    if header.magic_number != 0xA1B2C3D4 and header.magic_number != 0xA1B23C4D:
+        print(f"ERROR: Unexpected magic number value {header.magic_num:#x}")
         return LinkType.INVALID
 
     # Only LINKTYPE_ETHERNET is supported now
-    if link_type != LinkType.ETHERNET.value:
-       print(f"ERROR: Unsupported link type {link_type}")
+    if header.link_type != LinkType.ETHERNET.value:
+       print(f"ERROR: Unsupported link type {header.link_type}")
        return LinkType.INVALID
 
-    print(f"Link Type {LinkType(link_type).name}")
-    return LinkType(link_type)
+    print(f"Link Type {LinkType(header.link_type).name}")
+    return LinkType(header.link_type)
 
+#
 # Global frames counter
+#
 frame_num_g = 0
 
 #
