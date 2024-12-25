@@ -10,6 +10,16 @@ VER_MAJOR = 0
 VER_MINOR = 4
 
 #
+# PCAP file type
+#
+class PcapType(Enum):
+    PCAP     = 0
+    PCAPNG   = 1
+
+PCAP_FILE_EXT_STR = "pcap"
+PCAPNG_FILE_EXT_STR = "pcapng"
+
+#
 # Physical link type
 #
 class LinkType(Enum):
@@ -64,6 +74,9 @@ class AppCtx:
         self.cur_frame     = None
         self.server_sock   = None
 
+URL_SCHEME_PLAIN_TCP = "plain-tcp"
+URL_SCHEME_TLS_TCP   = "tls-tcp"
+
 #
 #  parse_input_frame_nums
 #
@@ -81,7 +94,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pcap', type=str, required=True, help='pcap filename')
     parser.add_argument('--frames', type=str, required=True, help='Comma separated list of frame nums: 1,2,3')
-    parser.add_argument('--replay_to', type=str, required=False, help='Remote host URL (tcp-plain://host:port) to send frames')
+    parser.add_argument('--replay_to', type=str, required=False, help=f'Remote host URL ({URL_SCHEME_PLAIN_TCP}://host:port) to send frames')
     parser.add_argument('--delay', type=int, required=False, help='Delay in ms between sending frames')
     args = parser.parse_args()
     if args.pcap is None:
@@ -105,23 +118,35 @@ def main():
 # run_app
 #
 def run_app(ctx):
-    
-    if ctx.replay_to_url:
-        connect_to_remote_addr(ctx)
 
     print(f"Open pcap file: {ctx.pcap_filename}")
+    filename, file_ext = ctx.pcap_filename.split(".")
+    pcap_type = PcapType.PCAP # PCAP by default
+    if file_ext == PCAPNG_FILE_EXT_STR:
+        print("ERROR! Pcapng format is not supported")
+        sys.exit(1)
+
     try:
         with open(ctx.pcap_filename, "rb") as pcap_file:
-            link_type = parse_and_validate_header(pcap_file)
-            if link_type == LinkType.INVALID:
-                if ctx.server_sock:
-                    ctx.server_sock.close()
-                sys.exit(1)
+            if pcap_type == PcapType.PCAP:
+                link_type = parse_and_validate_pcap_header(pcap_file)
+                if link_type == LinkType.INVALID:
+                    if ctx.server_sock:
+                        ctx.server_sock.close()
+                    sys.exit(1)
 
-            print(f"\nReading frames: {ctx.in_frame_nums}")
-            while read_parse_frames(pcap_file, link_type, ctx):
+                print(f"\nReading frames: {ctx.in_frame_nums}")
+                while read_parse_frames(pcap_file, link_type, ctx):
+                    pass
+            else:
+                #TODO: pcapng support
                 pass
+
             print("Done!")
+
+            # If requested, connect to a remote peer to replay frames to
+            if ctx.replay_to_url:
+                connect_to_remote_addr(ctx)
 
             print(f"\nProcessing frames:")
             num_of_processed_frames = process_frames(ctx)
@@ -140,11 +165,11 @@ def connect_to_remote_addr(ctx):
     print(f"\nConnecting to {ctx.replay_to_url}")
     parsed_url = urlparse(ctx.replay_to_url)
     is_tls = False
-    if parsed_url.scheme == "tcp-plain":
+    if parsed_url.scheme == URL_SCHEME_PLAIN_TCP:
          pass # Plain text by default
-    elif parsed_url.scheme == "tcp-tls":
+    elif parsed_url.scheme == URL_SCHEME_TLS_TCP:
          is_tls = True
-         print ("ERROR! tcp-tls scheme is not supported")
+         print (f"ERROR! {URL_SCHEME_TLS_TCP} scheme is not supported")
          sys.exit(1)
     else:
          print (f"ERROR! Unrecognized URL scheme: {parsed_url.scheme}")
@@ -181,7 +206,7 @@ def connect_to_remote_addr(ctx):
 #
 # parse_and_validate_header
 #
-def parse_and_validate_header(pcap_file):
+def parse_and_validate_pcap_header(pcap_file):
 
     # File header format:
     # Magic Number (32 bits)
