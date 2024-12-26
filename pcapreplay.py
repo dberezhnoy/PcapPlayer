@@ -91,6 +91,7 @@ def run_app(ctx):
             print (f"\nDone! Number of processed frames: {num_of_processed_frames}")
     except OSError as err:
         print ("Couldn't open pcap file: %s" %(err))
+
 #
 # connect_to_remote_addr
 #
@@ -138,7 +139,7 @@ def connect_to_remote_addr(ctx):
     print("Connected!")
 
 #
-# parse_and_validate_header
+# parse_and_validate_pcap_header
 #
 def parse_and_validate_pcap_header(pcap_file):
 
@@ -168,7 +169,7 @@ def parse_and_validate_pcap_header(pcap_file):
 frame_num_g = 0
 
 #
-# read_parse_frames
+# parse_pcap_record
 #
 def parse_pcap_record(pcap_file, link_type, ctx):
 
