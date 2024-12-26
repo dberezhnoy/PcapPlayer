@@ -205,12 +205,11 @@ def parse_eth2_frame(pcap_file, eth_frame_len, ctx):
     if frame_num_g not in ctx.in_frame_nums:
         return True
  
-    match eth_type:
-        case types.EthType.IPv4:
-            return parse_ipv4_header(data[14:], ctx)
-        case _:
-            print (f"Frame {frame_num_g}: Skipped unsupported eth type {data[12]:#x}{data[13]:#x}.")
-            return True
+    if eth_type == types.EthType.IPv4:
+        return parse_ipv4_header(data[14:], ctx)
+    else:
+        print (f"Frame {frame_num_g}: Skipped unsupported eth type {data[12]:#x}{data[13]:#x}.")
+        return True
 
 #      
 # parse_ipv4_header
@@ -225,13 +224,12 @@ def parse_ipv4_header(data, ctx):
     if data[9] == 0x6:
         transport_protocol = types.TransportProtocolType.TCP
 
-    match transport_protocol:
-        case types.TransportProtocolType.TCP:
-            parse_tcp_header(data[header_len:], ctx)
-            return True
-        case _:
-            print(f"Frame {frame_num_g}: Skipping frame with unsupported transport protocol {data[9]:#x}.")
-            return True
+    if transport_protocol == types.TransportProtocolType.TCP:
+        parse_tcp_header(data[header_len:], ctx)
+        return True
+    else:
+        print(f"Frame {frame_num_g}: Skipping frame with unsupported transport protocol {data[9]:#x}.")
+        return True
 #
 # parse_tcp_header
 #
