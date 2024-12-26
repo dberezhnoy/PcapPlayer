@@ -158,7 +158,7 @@ def parse_and_validate_pcap_header(pcap_file):
     # Only LINKTYPE_ETHERNET is supported now
     if header.link_type != types.LinkType.ETHERNET.value:
        print(f"ERROR! Unsupported link type {header.link_type}")
-       return LinkType.INVALID
+       return types.LinkType.INVALID
 
     print(f"Link Type {types.LinkType(header.link_type).name}")
     return types.LinkType(header.link_type)
