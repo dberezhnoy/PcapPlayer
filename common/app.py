@@ -1,5 +1,5 @@
-VER_MAJOR = 0
-VER_MINOR = 4
+VER_MAJOR = 1
+VER_MINOR = 0
 
 #
 # Ethernet frame with IPv4/TCP protocols
