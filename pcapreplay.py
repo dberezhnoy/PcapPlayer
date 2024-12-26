@@ -99,11 +99,11 @@ def connect_to_remote_addr(ctx):
     print(f"\nConnecting to {ctx.replay_to_url}")
     parsed_url = urlparse(ctx.replay_to_url.casefold())
     is_tls = False
-    if parsed_url.scheme == URL_SCHEME_PLAIN_TCP:
+    if parsed_url.scheme == app.URL_SCHEME_PLAIN_TCP:
          pass # Plain text by default
-    elif parsed_url.scheme == URL_SCHEME_TLS_TCP:
+    elif parsed_url.scheme == app.URL_SCHEME_TLS_TCP:
          is_tls = True
-         print (f"ERROR! {URL_SCHEME_TLS_TCP} scheme is not supported")
+         print (f"ERROR! {app.URL_SCHEME_TLS_TCP} scheme is not supported")
          sys.exit(1)
     else:
          print (f"ERROR! Unrecognized URL scheme: {parsed_url.scheme}")
@@ -135,7 +135,7 @@ def connect_to_remote_addr(ctx):
         sys.exit(1) 
 
     ctx.server_sock = s
-    print("Connected!\n")
+    print("Connected!")
 
 #
 # parse_and_validate_header
