@@ -7,77 +7,8 @@ from enum import Enum
 from urllib.parse import urlparse
 from formats import pcapng
 from formats import pcap
-
-VER_MAJOR = 0
-VER_MINOR = 4
-
-#
-# PCAP file type
-#
-class PcapType(Enum):
-    PCAP     = 0
-    PCAPNG   = 1
-
-
-
-
-#
-# Physical link type
-#
-class LinkType(Enum):
-    INVALID  = -1 # Invalid
-    NULL     = 0  # BSD loopback encapsulation.
-    ETHERNET = 1  # IEEE 802.3 Ethernet (10Mb, 100Mb, 1000Mb, and up)
-#
-# Protocol encapsulated in the payload of the eth frame
-#
-class EthType(Enum):
-    INVALID  = -1 # Invalid
-    IPv4     = 0  # IPv4
-    IPv6     = 1  # IPv6
-
-#
-# Transport layer protocols
-#
-class TransportProtocol(Enum):
-    INVALID  = -1 # Invalid
-    TCP      = 0  # TCP
-    UDP      = 1  # UDP
-
-#
-# Ethernet frame with IPv4/TCP protocols
-#
-class Frame:
-    def __init__(self):
-        self.frame_num    = 0
-        self.captured_len = None
-        self.origin_len   = None
-        self.src_ip       = None
-        self.src_port     = None
-        self.dst_ip       = None
-        self.dst_port     = None
-        self.payload      = None
-        self.payload_len  = 0
-
-    def __eq__(self, other):
-        return self.frame_num == other.frame_num
-#
-# Application context
-#
-class AppCtx:
-    def __init__(self):
-        # Input args
-        self.pcap_filename  = None
-        self.in_frame_nums  = None
-        self.replay_to_url  = None
-        self.delay_ms       = 0
-        # App context
-        self.frame_list    = None
-        self.cur_frame     = None
-        self.server_sock   = None
-
-URL_SCHEME_PLAIN_TCP = "plain-tcp"
-URL_SCHEME_TLS_TCP   = "tls-tcp"
+from common import types
+from common import app
 
 #
 #  parse_input_frame_nums
@@ -85,18 +16,19 @@ URL_SCHEME_TLS_TCP   = "tls-tcp"
 def parse_input_frame_nums(frame_nums):
     list_of_nums = [int(num.strip()) for num in frame_nums.split(",")]
     return list_of_nums
+
 #
 # Main
 #
 def main():
 
-    print(f"Pcap player (v{VER_MAJOR}.{VER_MINOR})")
+    print(f"Pcap player (v{app.VER_MAJOR}.{app.VER_MINOR})")
 
     # Parse input arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--pcap', type=str, required=True, help='pcap filename')
     parser.add_argument('--frames', type=str, required=True, help='Comma separated list of frame nums: 1,2,3')
-    parser.add_argument('--replay_to', type=str, required=False, help=f'Remote host URL ({URL_SCHEME_PLAIN_TCP}://host:port) to send frames')
+    parser.add_argument('--replay_to', type=str, required=False, help=f'Remote host URL ({app.URL_SCHEME_PLAIN_TCP}://host:port) to send frames')
     parser.add_argument('--delay', type=int, required=False, help='Delay in ms between sending frames')
     args = parser.parse_args()
     if args.pcap is None:
@@ -105,7 +37,7 @@ def main():
         parser.error("frames list cannot be empty")
 
     # Init app context
-    ctx = AppCtx()
+    ctx = app.Ctx()
     ctx.pcap_filename  = args.pcap
     ctx.in_frame_nums  = parse_input_frame_nums(args.frames)
     ctx.replay_to_url  = args.replay_to
@@ -123,16 +55,16 @@ def run_app(ctx):
 
     print(f"Open pcap file: {ctx.pcap_filename}")
     filename, file_ext = ctx.pcap_filename.split(".")
-    pcap_type = PcapType.PCAP # PCAP by default
+    pcap_type = types.PcapType.PCAP # PCAP by default
     if file_ext == pcapng.PCAP_FILE_EXT_STR.casefold():
         print("ERROR! Pcapng format is not supported")
         sys.exit(1)
 
     try:
         with open(ctx.pcap_filename, "rb") as pcap_file:
-            if pcap_type == PcapType.PCAP:
+            if pcap_type == types.PcapType.PCAP:
                 link_type = parse_and_validate_pcap_header(pcap_file)
-                if link_type == LinkType.INVALID:
+                if link_type == types.LinkType.INVALID:
                     if ctx.server_sock:
                         ctx.server_sock.close()
                     sys.exit(1)
@@ -223,12 +155,12 @@ def parse_and_validate_pcap_header(pcap_file):
         return LinkType.INVALID
 
     # Only LINKTYPE_ETHERNET is supported now
-    if header.link_type != LinkType.ETHERNET.value:
+    if header.link_type != types.LinkType.ETHERNET.value:
        print(f"ERROR! Unsupported link type {header.link_type}")
        return LinkType.INVALID
 
-    print(f"Link Type {LinkType(header.link_type).name}")
-    return LinkType(header.link_type)
+    print(f"Link Type {types.LinkType(header.link_type).name}")
+    return types.LinkType(header.link_type)
 
 #
 # Global frames counter
@@ -249,12 +181,12 @@ def parse_pcap_record(pcap_file, link_type, ctx):
     global frame_num_g
     frame_num_g += 1
 
-    ctx.cur_frame = Frame()
+    ctx.cur_frame = app.Frame()
     ctx.cur_frame.frame_num    = frame_num_g
     ctx.cur_frame.captured_len = record.captured_packet_length
     ctx.cur_frame.origin_len   = record.original_packet_length
 
-    if link_type == LinkType.ETHERNET:
+    if link_type == types.LinkType.ETHERNET:
        return parse_eth2_frame(pcap_file, record.captured_packet_length, ctx)
 
     return False
@@ -265,15 +197,15 @@ def parse_pcap_record(pcap_file, link_type, ctx):
 def parse_eth2_frame(pcap_file, eth_frame_len, ctx):
 
     data = pcap_file.read(eth_frame_len)
-    eth_type =  EthType.INVALID
+    eth_type =  types.EthType.INVALID
     if data[12] == 0x08 and data[13] == 0x00:
-        eth_type = EthType.IPv4
+        eth_type = types.EthType.IPv4
 
     if frame_num_g not in ctx.in_frame_nums:
         return True
  
     match eth_type:
-        case EthType.IPv4:
+        case types.EthType.IPv4:
             return parse_ipv4_header(data[14:], ctx)
         case _:
             print (f"Frame {frame_num_g}: Skipped unsupported eth type {data[12]:#x}{data[13]:#x}.")
@@ -288,12 +220,12 @@ def parse_ipv4_header(data, ctx):
     ctx.cur_frame.src_ip = socket.inet_ntoa(data[12:16])
     ctx.cur_frame.dst_ip = socket.inet_ntoa(data[16:20])
 
-    transport_protocol = TransportProtocol.INVALID
+    transport_protocol = types.TransportProtocolType.INVALID
     if data[9] == 0x6:
-        transport_protocol = TransportProtocol.TCP
+        transport_protocol = types.TransportProtocolType.TCP
 
     match transport_protocol:
-        case TransportProtocol.TCP:
+        case types.TransportProtocolType.TCP:
             parse_tcp_header(data[header_len:], ctx)
             return True
         case _:
@@ -329,7 +261,7 @@ def save_payload(data, ctx):
 def process_frames(ctx):
     processed_frame_count = 0
     for frame_num in ctx.in_frame_nums:
-       frameToSearch = Frame()
+       frameToSearch = app.Frame()
        frameToSearch.frame_num = frame_num
        try:
            # Check if there should be delay before sending the next frame
