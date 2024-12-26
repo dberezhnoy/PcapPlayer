@@ -146,14 +146,14 @@ def parse_and_validate_pcap_header(pcap_file):
     header = pcap.read_header(pcap_file)
     if not header:
         print(f"ERROR! Invalid pcap header size")
-        return LinkType.INVALID
+        return types.LinkType.INVALID
 
     header.link_type &= 0x0FFFFFFF 
     print(f"Header: Magic Number {header.magic_number:#X} Major Version {header.major_version} Minor Version {header.minor_version} Link Type {header.link_type}")
 
     if header.magic_number != 0xA1B2C3D4 and header.magic_number != 0xA1B23C4D:
         print(f"ERROR! Unexpected magic number value {header.magic_num:#x}")
-        return LinkType.INVALID
+        return types.LinkType.INVALID
 
     # Only LINKTYPE_ETHERNET is supported now
     if header.link_type != types.LinkType.ETHERNET.value:
