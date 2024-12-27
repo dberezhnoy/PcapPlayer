@@ -98,5 +98,6 @@ Done! Number of processed frames: 5
 * Parsing pcapng format (PCAP Next Generation);
 * Parsing IPv6 packets;
 * Parsing UDP datagrams;
+* Parsing various L2 frames;
 * Making connections to a server via IPv6, SSL and UDP;
 * Supporting anything fun that comes to my mind;
