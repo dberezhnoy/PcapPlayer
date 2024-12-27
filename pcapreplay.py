@@ -1,3 +1,5 @@
+# Copyright (c) 2024 Denis Berezhnoy
+
 import socket
 import sys
 import struct

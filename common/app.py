@@ -1,3 +1,5 @@
+# Copyright (c) 2024 Denis Berezhnoy
+
 VER_MAJOR = 1
 VER_MINOR = 0
 

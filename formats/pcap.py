@@ -1,3 +1,5 @@
+# Copyright (c) 2024 Denis Berezhnoy
+
 import struct
 
 PCAP_FILE_EXT_STR = "pcap"

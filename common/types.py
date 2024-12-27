@@ -1,3 +1,5 @@
+# Copyright (c) 2024 Denis Berezhnoy
+
 from enum import Enum
 
 #
