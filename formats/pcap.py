@@ -14,7 +14,8 @@ class Header:
         self.snap_len      = None # SnapLen (32 bits)
         self.link_type     = None # LinkType (32 bits)
 
-    def __init__(self, magic_number, major_version, minor_version, reserved1, reserved2, snap_len, link_type):
+    def __init__(self, magic_number, major_version,
+                 minor_version, reserved1, reserved2, snap_len, link_type):
         self.magic_number  = magic_number 
         self.major_version = major_version 
         self.minor_version = minor_version 
@@ -33,7 +34,8 @@ def read_header(pcap_file):
     if len(header_bytes) < header_size:
         return None
 
-    magic_number, major_version, minor_version, reserved1, reserved2, snap_len, link_type = header_unpack(header_bytes)
+    (magic_number, major_version, minor_version, reserved1,
+    reserved2, snap_len, link_type) = header_unpack(header_bytes)
     header = Header(magic_number, major_version, minor_version, reserved1, reserved2, snap_len, link_type)
 
     return header 

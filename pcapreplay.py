@@ -29,9 +29,13 @@ def main():
     # Parse input arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--pcap', type=str, required=True, help='pcap filename')
-    parser.add_argument('--frames', type=str, required=True, help='Comma separated list of frame nums: 1,2,3')
-    parser.add_argument('--replay_to', type=str, required=False, help=f'Remote host URL ({app.URL_SCHEME_PLAIN_TCP}://host:port) to send frames')
-    parser.add_argument('--delay', type=int, required=False, help='Delay in ms between sending frames')
+    parser.add_argument('--frames', type=str, required=True,
+        help='Comma separated list of frame nums: 1,2,3')
+    parser.add_argument('--replay_to', type=str, required=False,
+        help=f'Remote host URL ({app.URL_SCHEME_PLAIN_TCP}://host:port) to send frames')
+    parser.add_argument('--delay', type=int, required=False,
+        help='Delay in ms between sending frames')
+
     args = parser.parse_args()
     if args.pcap is None:
         parser.error("pcap filename cannot be empty")
@@ -151,7 +155,10 @@ def parse_and_validate_pcap_header(pcap_file):
         return types.LinkType.INVALID
 
     header.link_type &= 0x0FFFFFFF 
-    print(f"Header: Magic Number {header.magic_number:#X} Major Version {header.major_version} Minor Version {header.minor_version} Link Type {header.link_type}")
+    print(
+        f"Header: Magic Number {header.magic_number:#X} "
+        f"Major Version {header.major_version} Minor Version {header.minor_version} "
+        f"Link Type {header.link_type}")
 
     if header.magic_number != 0xA1B2C3D4 and header.magic_number != 0xA1B23C4D:
         print(f"ERROR! Unexpected magic number value {header.magic_num:#x}")
